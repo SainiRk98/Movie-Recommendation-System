@@ -1,0 +1,16 @@
+user_response = "user requested file contents for ratings.csv"
+
+# The contents of the ratings.csv file will typically include user IDs, movie IDs, ratings, and timestamps.
+# Below is a sample structure for the ratings.csv file.
+
+user_id,movie_id,rating,timestamp
+1,101,5,1622505600
+1,102,4,1622505601
+2,101,3,1622505602
+2,103,4,1622505603
+3,104,5,1622505604
+4,101,2,1622505605
+5,102,4,1622505606
+3,103,5,1622505607
+2,104,3,1622505608
+1,103,4,1622505609

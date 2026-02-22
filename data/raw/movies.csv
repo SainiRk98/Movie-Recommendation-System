@@ -1,0 +1,89 @@
+title,overview,genres,keywords
+The Shawshank Redemption,Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.,Drama,"prison, friendship, hope"
+The Godfather,An organized crime dynasty's aging patriarch transfers control of his clandestine empire to his reluctant son.,Crime,Drama,"mafia, family, power"
+The Dark Knight,When the menace known as the Joker emerges from his mysterious past, he wreaks havoc and chaos on the people of Gotham.,Action,Crime,"vigilante, chaos, hero"
+Pulp Fiction,The lives of two mob hitmen, a boxer, a gangster's wife, and a pair of diner bandits intertwine in four tales of violence and redemption.,Crime,Drama,"violence, redemption, nonlinear"
+The Lord of the Rings: The Return of the King,A small hobbit and his friends set out to destroy a powerful ring that could bring about the end of Middle-earth.,Action,Adventure,"fantasy, quest, friendship"
+Forrest Gump,A man with a low IQ recounts the early years of his life when he found himself in the middle of key historical events.,Drama,Romance,"historical, love, destiny"
+Inception,A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a CEO.,Action,Sci-Fi,"dream, technology, heist"
+Fight Club,A depressed man and a soap maker form an underground fight club that evolves into much more.,Drama,"violence, identity, rebellion"
+The Matrix,A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers.,Action,Sci-Fi,"virtual reality, rebellion, dystopia"
+The Silence of the Lambs,A young FBI cadet must confide in an incarcerated and manipulative killer to receive his help on catching another serial killer.,Crime,Thriller,"psychological, serial killer, investigation"
+import argparse
+import ast
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+def extract_names(item):
+    if pd.isna(item):
+        return ""
+    s = str(item).strip()
+    try:
+        parsed = ast.literal_eval(s)
+        if isinstance(parsed, list):
+            names = []
+            for v in parsed:
+                if isinstance(v, dict) and 'name' in v:
+                    names.append(v['name'])
+                elif isinstance(v, str):
+                    names.append(v)
+            return " ".join(names)
+    except Exception:
+        pass
+    if "," in s:
+        return " ".join([x.strip() for x in s.split(",") if x.strip()])
+    return s
+
+def load_and_prepare(path):
+    df = pd.read_csv(path)
+    cols = []
+    for c in ['title','overview','genres','keywords']:
+        if c in df.columns:
+            cols.append(c)
+    df = df[cols].copy()
+    df.fillna("", inplace=True)
+    if 'genres' in df.columns:
+        df['genres'] = df['genres'].apply(extract_names)
+    if 'keywords' in df.columns:
+        df['keywords'] = df['keywords'].apply(extract_names)
+    df['content'] = df.get('overview', pd.Series([""]*len(df))).astype(str) + " " + df.get('genres', "") + " " + df.get('keywords', "")
+    return df.reset_index(drop=True)
+
+class Recommender:
+    def __init__(self, movies_df):
+        self.movies = movies_df
+        self.vectorizer = TfidfVectorizer(stop_words='english')
+        self.vectors = self.vectorizer.fit_transform(self.movies['content'].astype(str))
+        self.similarity = cosine_similarity(self.vectors)
+
+    def recommend(self, title, n=5):
+        titles = self.movies['title'].astype(str).values
+        mask = titles == title
+        if not mask.any():
+            return []
+        idx = int(self.movies[mask].index[0])
+        scores = list(enumerate(self.similarity[idx]))
+        scores = sorted(scores, key=lambda x: x[1], reverse=True)
+        recs = [self.movies.iloc[i[0]]['title'] for i in scores[1:n+1]]
+        return recs
+
+def main():
+    p = argparse.ArgumentParser()
+    # default now points to the tmdb file name you requested
+    p.add_argument('--input', default='data/raw/tmdb_5000_movies.csv')
+    p.add_argument('--movie', required=True)
+    p.add_argument('--n', type=int, default=5)
+    args = p.parse_args()
+
+    df = load_and_prepare(args.input)
+    r = Recommender(df)
+    recs = r.recommend(args.movie, args.n)
+    if not recs:
+        print("Movie not found.")
+    else:
+        for t in recs:
+            print(t)
+
+if __name__ == '__main__':
+    main()
